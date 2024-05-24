@@ -9,7 +9,7 @@ let socks5Address = '';
 
 let addresses = [
 	//当sub为空时启用本地优选域名/优选IP，若不带端口号 TLS默认端口为443，#号后为备注别名
-	'cf.090227.xyz:443#加入我的频道t.me/CMLiussss解锁更多优选节点',
+	'cf.090227.xyz:443#',
 	'time.is#你可以只放域名 如下',
 	'www.visa.com.sg',
 	'skk.moe#也可以放域名带端口 如下',
