@@ -88,6 +88,7 @@ export default {
 			BotToken = env.TGTOKEN || BotToken;
 			ChatID = env.TGID || ChatID; 
 			sub = env.SUB || sub;
+			if (url.searchParams.has('sub') && url.searchParams.get('sub') !== '') sub = url.searchParams.get('sub');
 			subconverter = env.SUBAPI || subconverter;
 			subconfig = env.SUBCONFIG || subconfig;
 			FileName = env.SUBNAME || FileName;
@@ -170,7 +171,6 @@ export default {
 				proxyIP = url.searchParams.get('proxyip') || proxyIP;
 				if (new RegExp('/proxyip=', 'i').test(url.pathname)) proxyIP = url.pathname.toLowerCase().split('/proxyip=')[1];
 				else if (new RegExp('/proxyip.', 'i').test(url.pathname)) proxyIP = `proxyip.${url.pathname.toLowerCase().split("/proxyip.")[1]}`;
-				else if (!proxyIP || proxyIP == '') proxyIP = 'proxyip.fxxk.dedyn.io';
 
 				socks5Address = url.searchParams.get('socks5') || socks5Address;
 				if (new RegExp('/socks5=', 'i').test(url.pathname)) socks5Address = url.pathname.split('5=')[1];
@@ -362,13 +362,15 @@ async function parseTrojanHeader(buffer) {
 
 async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawClientData, webSocket, log, addressType) {
 	async function connectAndWrite(address, port, socks = false) {
+		log(`connected to ${address}:${port}`);
+		//if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(address)) address = `${atob('d3d3Lg==')}${address}${atob('LmlwLjA5MDIyNy54eXo=')}`;
 		const tcpSocket2 = socks ? await socks5Connect(addressType, address, port, log)
 		: connect({
 			hostname: address,
 			port
 		});
 		remoteSocket.value = tcpSocket2;
-		log(`connected to ${address}:${port}`);
+		//log(`connected to ${address}:${port}`);
 		const writer = tcpSocket2.writable.getWriter();
 		await writer.write(rawClientData);
 		writer.releaseLock();
@@ -379,6 +381,7 @@ async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawCli
 		if (enableSocks) {
 			tcpSocket2 = await connectAndWrite(addressRemote, portRemote, true);
 		} else {
+			if (!proxyIP || proxyIP == '') proxyIP = atob('cHJveHlpcC5meHhrLmRlZHluLmlv');
 			tcpSocket2 = await connectAndWrite(proxyIP || addressRemote, portRemote);
 		}
 		tcpSocket2.closed.catch((error) => {
@@ -574,9 +577,32 @@ async function getTrojanConfig(password, hostName, sub, UA, RproxyIP, _url) {
 	const Config = 配置信息(password , hostName);
 	const v2ray = Config[0];
 	const clash = Config[1];
-
+	let proxyhost = "";
+	if(hostName.includes(".workers.dev") || hostName.includes(".pages.dev")){
+		if ( proxyhostsURL && (!proxyhosts || proxyhosts.length == 0)) {
+			try {
+				const response = await fetch(proxyhostsURL); 
+			
+				if (!response.ok) {
+					console.error('获取地址时出错:', response.status, response.statusText);
+					return; // 如果有错误，直接返回
+				}
+			
+				const text = await response.text();
+				const lines = text.split('\n');
+				// 过滤掉空行或只包含空白字符的行
+				const nonEmptyLines = lines.filter(line => line.trim() !== '');
+			
+				proxyhosts = proxyhosts.concat(nonEmptyLines);
+			} catch (error) {
+				//console.error('获取地址时出错:', error);
+			}
+		} 
+		if (proxyhosts.length != 0) proxyhost = proxyhosts[Math.floor(Math.random() * proxyhosts.length)] + "/";
+	}
+	
 	if ( userAgent.includes('mozilla') && !subParams.some(_searchParams => _url.searchParams.has(_searchParams))) {
-		let surge = `Surge订阅地址:\nhttps://${hostName}/${password}?surge`;
+		let surge = `Surge订阅地址:\nhttps://${proxyhost}${hostName}/${password}?surge`;
 		if (hostName.includes(".workers.dev") || hostName.includes(".pages.dev")) surge = "Surge订阅必须绑定自定义域";
 		
 		let 订阅器 = `您的订阅内容由 ${sub} 提供维护支持, 自动获取ProxyIP: ${RproxyIP}`;
@@ -584,29 +610,30 @@ async function getTrojanConfig(password, hostName, sub, UA, RproxyIP, _url) {
 			if (!proxyIP || proxyIP =='') {
 				订阅器 = '您的订阅内容由 内置 addresses/ADD 参数提供, 当前使用的ProxyIP为空, 推荐您设置 proxyIP/PROXYIP ！！！';
 			} else {
-				订阅器 = `您的订阅内容由 内置 addresses/ADD 参数提供, 当前使用的ProxyIP： ${proxyIPs.join(',')}`;
+				订阅器 = `您的订阅内容由 内置 addresses/ADD 参数提供, 当前使用的ProxyIP: ${proxyIPs.join(', ')}`;
 			}
 		} else if (RproxyIP != 'true'){
-			订阅器 += `, 当前使用的ProxyIP： ${proxyIPs.join(',')}`;
+			if (enableSocks) 订阅器 += `, 当前使用的Socks5: ${parsedSocks5Address.hostname}:${String(parsedSocks5Address.port)}`;
+			else 订阅器 += `, 当前使用的ProxyIP: ${proxyIPs.join(', ')}`;
 		}
 		return `
 ################################################################
 Subscribe / sub 订阅地址, 支持 Base64、clash-meta、sing-box 订阅格式, ${订阅器}
 ---------------------------------------------------------------
 快速自适应订阅地址:
-https://${hostName}/${password}
+https://${proxyhost}${hostName}/${password}
+https://${proxyhost}${hostName}/${password}?sub
 
 Base64订阅地址:
-https://${hostName}/${password}?sub
-https://${hostName}/${password}?b64
-https://${hostName}/${password}?base64
+https://${proxyhost}${hostName}/${password}?b64
+https://${proxyhost}${hostName}/${password}?base64
 
 clash订阅地址:
-https://${hostName}/${password}?clash
+https://${proxyhost}${hostName}/${password}?clash
 
 singbox订阅地址:
-https://${hostName}/${password}?sb
-https://${hostName}/${password}?singbox
+https://${proxyhost}${hostName}/${password}?sb
+https://${proxyhost}${hostName}/${password}?singbox
 
 ${surge}
 ---------------------------------------------------------------
@@ -1703,6 +1730,7 @@ function socks5AddressParser(address) {
 	if (hostname.includes(":") && !regex.test(hostname)) {
 		throw new Error('Invalid SOCKS address format');
 	}
+	//if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(hostname)) hostname = `${atob('d3d3Lg==')}${hostname}${atob('LmlwLjA5MDIyNy54eXo=')}`;
 	return {
 		username,
 		password,
